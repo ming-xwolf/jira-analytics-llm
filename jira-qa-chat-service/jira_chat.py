@@ -1,20 +1,18 @@
 import shutil
 import os
-import openai
 
-from langchain.embeddings import HuggingFaceEmbeddings
-from langchain.vectorstores import DeepLake
-from langchain.chat_models import ChatOpenAI
+from langchain_community.vectorstores import DeepLake
+from langchain_community.llms import Ollama
+from langchain_community.embeddings.ollama import OllamaEmbeddings
 from langchain.chains import ConversationalRetrievalChain
-from langchain.document_loaders import CSVLoader
+from langchain_community.document_loaders import CSVLoader
 from langchain.docstore.document import Document
 
-from dotenv import load_dotenv
 
-load_dotenv()
-
-openai.api_key = os.getenv("OPENAI_API_KEY")
-
+base_url="http://192.168.2.52:11434"
+model_name = "llama3"
+ollama_embeddings = OllamaEmbeddings(base_url=base_url,model=model_name)
+ollama_llm = Ollama(base_url=base_url, model=model_name)
 
 def process_csv_files(file_paths) -> list[Document]:
     documents = []
@@ -26,6 +24,7 @@ def process_csv_files(file_paths) -> list[Document]:
 
 
 def get_vectorstore(documents, embeddings, dataset_path) -> DeepLake:
+
     if documents:
         vectorstore = DeepLake.from_documents(documents, embeddings, dataset_path=dataset_path)
     else:
@@ -40,7 +39,7 @@ def check_data_updated(documents, dataset_path, embeddings) -> bool:
         # Get the number of documents in the DeepLake dataset
         try:
             check_vectorstore = DeepLake(embedding_function=embeddings, dataset_path=dataset_path)
-            num_docs_deep_lake = check_vectorstore.ds.num_samples
+            num_docs_deep_lake = check_vectorstore.ds.num_documents
             if num_docs_deep_lake == 0:
                 shutil.rmtree(dataset_path)
         except Exception as e:
@@ -57,12 +56,10 @@ def update_vectorstore():
     global vectorstore
     dataset_path = './db/deeplake'
     data_csv_file_path = './sample_data/issues.csv'
-    model_name = "multi-qa-MiniLM-L6-cos-v1"
-    embeddings = HuggingFaceEmbeddings(model_name=model_name)
 
     documents = process_csv_files([data_csv_file_path])
+    data_updated = check_data_updated(documents, dataset_path, ollama_embeddings)
 
-    data_updated = check_data_updated(documents, dataset_path, embeddings)
 
     # Compare the number of rows in the dataframe with the number of documents in the DeepLake dataset
     if data_updated:
@@ -77,7 +74,7 @@ def update_vectorstore():
     else:
         documents = None
 
-    vectorstore = get_vectorstore(documents, embeddings, dataset_path)
+    vectorstore = get_vectorstore(documents, ollama_embeddings, dataset_path)
 
 
 def answer_question(query):
@@ -87,7 +84,7 @@ def answer_question(query):
     retriever.search_kwargs["distance_metric"] = "cos"
     retriever.search_kwargs["k"] = 10
 
-    qa = ConversationalRetrievalChain.from_llm(ChatOpenAI(model_name="gpt-3.5-turbo"), retriever=retriever,
+    qa = ConversationalRetrievalChain.from_llm(ollama_llm, retriever=retriever,
                                                return_source_documents=True)
 
     # Answer query

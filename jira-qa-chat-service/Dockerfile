@@ -1,12 +1,14 @@
 # Use the official Python base image with version tag
-FROM python:3.9-slim
+FROM python:3.11-slim
 
 # Set the working directory
 ADD . /app
 WORKDIR /app
 
-# Update package lists and install build-essential
-RUN apt update && apt install -y build-essential
+#RUN sed -i 's/archive.ubuntu.com/mirrors.aliyun.com/g' /etc/apt/sources.list
+#
+## Update package lists and install build-essential
+#RUN apt-get update && apt-get install -y build-essential
 
 # Copy files to the container
 COPY . .
